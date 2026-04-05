@@ -1,0 +1,25 @@
+# ---------- Terraform/Terragrunt ----------
+.terraform/
+*.tfstate
+*.tfstate.backup
+*.tfvars
+*.tfvars.json
+.terragrunt-cache/
+.terraform.lock.hcl
+
+# ---------- Ansible ----------
+*.retry
+inventory/aws_ec2.yml # If you include AWS credentials here, ignore it!
+
+# ---------- Keys & Secrets ----------
+*.pem
+*.key
+*.pub
+secrets.tfvars
+.env
+
+# ---------- OS/IDE ----------
+.DS_Store
+.idea/
+.vscode/
+node_modules/
