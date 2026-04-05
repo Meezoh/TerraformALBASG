@@ -3,12 +3,22 @@ include "root" {
 }
 
 terraform {
-  source = "../../../modules/ec2_fleet"
+  source = "../../modules/ec2_fleet"
 }
 
 # This is the "Piping" that connects the two modules
 dependency "vpc" {
   config_path = "../vpc"
+
+  # ADD THIS BLOCK
+  mock_outputs = {
+    vpc_id             = "vpc-fake-id"
+    public_subnet_ids  = ["subnet-fake-1", "subnet-fake-2"]
+    private_subnet_ids = ["subnet-fake-3", "subnet-fake-4"]
+    alb_sg_id          = "sg-fake-1"
+    ec2_sg_id          = "sg-fake-2"
+  }
+  mock_outputs_allowed_terraform_commands = ["plan", "validate"]
 }
 
 inputs = {

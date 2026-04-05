@@ -8,7 +8,7 @@ remote_state {
     if_exists = "overwrite_terragrunt"
   }
   config = {
-    bucket         = "my-devops-lab-state-${get_aws_account_id()}" # Unique bucket name
+    bucket         = "my-devops-lab-state-meezohzahri" # Unique bucket name
     key            = "${path_relative_to_include()}/terraform.tfstate"
     region         = "us-east-1"
     encrypt        = true
@@ -16,6 +16,7 @@ remote_state {
     #dynamodb_table = "terraform-lock-table" # Prevents two people from deploying at once
   }
 }
+
 
 # Generate an AWS provider block in every child module automatically
 generate "provider" {
