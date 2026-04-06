@@ -1,4 +1,21 @@
 # ==============================================================================
+# SECRETS STORAGE: Securely holding your GitHub Private Key
+# ==============================================================================
+
+resource "aws_secretsmanager_secret" "github_key" {
+  name        = "dev/github/deploy_key"
+  description = "SSH Private Key for GitHub Deploy"
+}
+
+resource "aws_secretsmanager_secret_version" "key_val" {
+  secret_id     = aws_secretsmanager_secret.github_key.id
+  # Looks for the key file at the root of your project
+  secret_string = file("${path.module}/../../.keys/github_deploy_key") 
+}
+
+
+
+# ==============================================================================
 # DATABASE TIER: The Single Source of Truth
 # ==============================================================================
 
@@ -37,14 +54,41 @@ resource "aws_instance" "db_server" {
 
   user_data = <<-EOF
     #!/bin/bash
-    # 1. Set Local Fact as Database
+    # ------------------------------------------------------------------------------
+    # 1. Identity & Tooling
+    # ------------------------------------------------------------------------------
     mkdir -p /etc/ansible/facts.d
     echo '{"Role": "database"}' > /etc/ansible/facts.d/tags.fact
-
-    # 2. Install and Pull
     apt-get update
-    apt-get install -y ansible git
-    ansible-pull -U https://github.com/Meezoh/Ansible.git -d /tmp/ansible setup.yaml
+
+    # Install unzip which is required to unpack the AWS CLI
+    apt-get install -y ansible git unzip curl
+
+    # Download and install the latest AWS CLI v2
+    curl "https://awscli.amazonaws.com/awscli-exe-linux-x86_64.zip" -o "awscliv2.zip"
+    unzip awscliv2.zip
+    sudo ./aws/install
+
+    # Verify it works (optional, but good for logs)
+    aws --version
+
+    # ------------------------------------------------------------------------------
+    # 2. Secure SSH Key Retrieval
+    # ------------------------------------------------------------------------------
+    mkdir -p /root/.ssh
+    aws secretsmanager get-secret-value \
+      --secret-id dev/github/deploy_key \
+      --query SecretString \
+      --output text \
+      --region us-east-1 > /root/.ssh/id_ed25519
+    chmod 600 /root/.ssh/id_ed25519
+    ssh-keyscan github.com >> /root/.ssh/known_hosts
+
+    # ------------------------------------------------------------------------------
+    # 3. Private Pull via SSH
+    # ------------------------------------------------------------------------------
+    ansible-pull -U git@github.com:Meezoh/TerraformALBASG.git -d /tmp/ansible ansible/setup.yaml
+    
   EOF
   
   # Give it the same SSM badge so we can log into it too!
@@ -84,7 +128,24 @@ resource "aws_iam_role_policy_attachment" "ssm_attach" {
   policy_arn = "arn:aws:iam::aws:policy/AmazonSSMManagedInstanceCore"
 }
 
-# 3. Create the Instance Profile (The actual "ID Badge" the EC2 wears)
+# 3. Policy for reading the GitHub Private Key from Secrets Manager
+resource "aws_iam_role_policy" "secrets_policy" {
+  name = "allow-read-github-key"
+  role = aws_iam_role.ec2_role.id
+
+  policy = jsonencode({
+    Version = "2012-10-17"
+    Statement = [
+      {
+        Action   = "secretsmanager:GetSecretValue"
+        Effect   = "Allow"
+        Resource = aws_secretsmanager_secret.github_key.arn
+      }
+    ]
+  })
+}
+
+# 4. Create the Instance Profile (The actual "ID Badge" the EC2 wears)
 resource "aws_iam_instance_profile" "ec2_profile" {
   name = "dev-web-ssm-profile"
   role = aws_iam_role.ec2_role.name
@@ -119,20 +180,41 @@ resource "aws_launch_template" "web" {
   # THE BOOTSTRAP: Configuring 5 Workers to find the 1 DB
   user_data = base64encode(<<-EOF
     #!/bin/bash
-    # 1. Inject Database Connection Info
+    # ------------------------------------------------------------------------------
+    # 1. Env, Identity & Tooling
+    # ------------------------------------------------------------------------------
     echo "DB_HOST=${aws_instance.db_server.private_ip}" >> /etc/environment
-    echo "DB_NAME=devops_db" >> /etc/environment
-
-    # 2. Set Local Fact (Identity) for Ansible
     mkdir -p /etc/ansible/facts.d
     echo '{"Role": "web-worker"}' > /etc/ansible/facts.d/tags.fact
-
-    # 3. Install Ansible and Git
     apt-get update
-    apt-get install -y ansible git
 
-    # 4. Pull and Run the Master Playbook from GitHub
-    ansible-pull -U https://github.com/Meezoh/Ansible.git -d /tmp/ansible setup.yaml
+    # Install unzip which is required to unpack the AWS CLI
+    apt-get install -y ansible git unzip curl
+
+    # Download and install the latest AWS CLI v2
+    curl "https://awscli.amazonaws.com/awscli-exe-linux-x86_64.zip" -o "awscliv2.zip"
+    unzip awscliv2.zip
+    sudo ./aws/install
+
+    # Verify it works (optional, but good for logs)
+    aws --version
+
+    # ------------------------------------------------------------------------------
+    # 2. SSH Handshake
+    # ------------------------------------------------------------------------------
+    mkdir -p /root/.ssh
+    aws secretsmanager get-secret-value \
+      --secret-id dev/github/deploy_key \
+      --query SecretString \
+      --output text \
+      --region us-east-1 > /root/.ssh/id_ed25519
+    chmod 600 /root/.ssh/id_ed25519
+    ssh-keyscan github.com >> /root/.ssh/known_hosts
+
+    # ------------------------------------------------------------------------------
+    # 3. Private Pull
+    # ------------------------------------------------------------------------------
+    ansible-pull -U git@github.com:Meezoh/TerraformALBASG.git -d /tmp/ansible ansible/setup.yaml
   EOF
   )
 
