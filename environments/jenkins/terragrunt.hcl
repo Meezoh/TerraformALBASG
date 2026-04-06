@@ -20,7 +20,7 @@ dependency "vpc" {
   mock_outputs = {
     vpc_id           = "vpc-12345"
     public_subnet_id = "subnet-12345"
-    detected_ip      = "0.0.0.0/0"
+    my_detected_ip      = "0.0.0.0/0"
   }
 }
 
@@ -30,6 +30,6 @@ dependency "vpc" {
 inputs = {
   vpc_id           = dependency.vpc.outputs.vpc_id
   public_subnet_id = dependency.vpc.outputs.public_subnet_ids[0] # Grab the first public subnet
-  my_ip            = dependency.vpc.outputs.my_detected_ip          # THE "MAGIC" CONNECTION
+  my_detected_ip   = dependency.vpc.outputs.my_detected_ip          # THE "MAGIC" CONNECTION
   instance_type    = "t3.large"
 }
