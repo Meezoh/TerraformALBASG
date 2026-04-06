@@ -62,20 +62,26 @@ resource "aws_instance" "jenkins_server" {
   # BOOTSTRAP: Automated Software Installation (User Data)
   # ----------------------------------------------------------------------------
   user_data = <<-EOF
-              #!/bin/bash
-              apt-get update -y
-              apt-get install -y openjdk-17-jre
-              
-              # Add Jenkins Repository and Key
-              curl -fsSL https://pkg.jenkins.io/debian-stable/jenkins.io-2023.key | sudo tee /usr/share/keyrings/jenkins-keyring.asc > /dev/null
-              echo deb [signed-by=/usr/share/keyrings/jenkins-keyring.asc] https://pkg.jenkins.io/debian-stable binary/ | sudo tee /etc/apt/sources.list.d/jenkins.list > /dev/null
-              
-              # Install and Start Jenkins
-              apt-get update -y
-              apt-get install -y jenkins
-              systemctl enable jenkins
-              systemctl start jenkins
-              EOF
+            #!/bin/bash
+            apt-get update -y
+            apt-get install -y openjdk-17-jre
+            
+            # Add Jenkins Repository and Key
+            curl -fsSL https://pkg.jenkins.io/debian-stable/jenkins.io-2023.key | sudo tee /usr/share/keyrings/jenkins-keyring.asc > /dev/null
+            echo deb [signed-by=/usr/share/keyrings/jenkins-keyring.asc] https://pkg.jenkins.io/debian-stable binary/ | sudo tee /etc/apt/sources.list.d/jenkins.list > /dev/null
+            
+            # Install and Start Jenkins
+            apt-get update -y
+            apt-get install -y jenkins
+            systemctl enable jenkins
+            systemctl start jenkins
+
+            sleep 30
+            echo "--------------------------------------------------------"
+            echo "JENKINS INITIAL ADMIN PASSWORD:"
+            cat /var/lib/jenkins/secrets/initialAdminPassword
+            echo "--------------------------------------------------------"
+            EOF
 
   tags = {
     Name = "dev-jenkins-server"
