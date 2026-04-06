@@ -1,0 +1,92 @@
+---
+# ------------------------------------------------------------------------------
+# PLAY 1: DATABASE CONFIGURATION
+# ------------------------------------------------------------------------------
+- name: "Configure Database Server"
+  hosts: localhost
+  become: yes
+  # Only runs if this server knows it's the "database"
+  when: ansible_local.tags.Role == "database"
+
+  tasks:
+    - name: "Install Postgres"
+      apt:
+        name: ["postgresql", "postgresql-contrib", "python3-psycopg2"]
+        state: present
+
+    - name: "Ensure Postgres is running"
+      service:
+        name: postgresql
+        state: started
+        enabled: yes
+
+    # --- YOUR USER & PRIVILEGE LOGIC STARTS HERE ---
+    
+    - name: "1. Create the Owner User"
+      become_user: postgres
+      community.postgresql.postgresql_user:
+        name: "devops_meezoh_user"
+        password: "AdminPassword123"
+        role_attr_flags: "CREATEDB,LOGIN"
+
+    - name: "2. Create the Read-Only User"
+      become_user: postgres
+      community.postgresql.postgresql_user:
+        name: "readonly_user"
+        password: "ReadPassword123"
+
+    - name: "3. Create the Database"
+      become_user: postgres
+      community.postgresql.postgresql_db:
+        name: "devops_db"
+
+    - name: "4. Grant ALL to Meezoh User"
+      become_user: postgres
+      community.postgresql.postgresql_privs:
+        database: devops_db
+        roles: devops_meezoh_user
+        type: database
+        privs: ALL
+
+    - name: "5. Grant SELECT to Read-Only User"
+      become_user: postgres
+      community.postgresql.postgresql_privs:
+        database: devops_db
+        schema: public
+        objs: ALL_IN_SCHEMA
+        type: table
+        roles: readonly_user
+        privs: SELECT
+
+# ------------------------------------------------------------------------------
+# PLAY 2: WORKER CONFIGURATION
+# ------------------------------------------------------------------------------
+- name: "Configure Web Workers"
+  hosts: localhost
+  become: yes
+  # This makes sure the Playbook only runs on the 4 workers
+  when: ansible_local.tags.Role == "web-worker"
+
+  tasks:
+    - name: "Install Nginx"
+      apt:
+        name: "nginx"
+        state: present
+        update_cache: yes
+
+    - name: "Set up Web Page with DB Connection Info"
+      copy:
+        # Note: We use the 'ansible_env' fact here because it's more 
+        # reliable for reading system-wide environment variables
+        content: |
+          <h1>Worker Active</h1>
+          <p>Worker Hostname: {{ ansible_hostname }}</p>
+          <p>Talking to DB at: {{ ansible_env.DB_HOST | default('Not Found') }}</p>
+        dest: /var/www/html/index.html
+      notify: "Restart Nginx"
+
+  handlers:
+    - name: "Restart Nginx"
+      service:
+        name: nginx
+        state: restarted

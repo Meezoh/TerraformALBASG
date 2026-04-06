@@ -2,7 +2,7 @@
 # VPC CORE: The main network container
 # ------------------------------------------------------------------------------
 resource "aws_vpc" "main" {
-  cidr_block           = "10.0.0.0/16"
+  cidr_block           = var.vpc_cidr
   enable_dns_hostnames = true
 
   tags = { Name = "dev-vpc" }
@@ -91,7 +91,7 @@ resource "aws_route_table_association" "private" {
 resource "aws_security_group" "alb_sg" {
   name        = "dev-alb-sg"
   description = "Allow HTTP inbound traffic"
-  vpc_id      = var.vpc_id
+  vpc_id      = aws_vpc.main.id
 
   ingress {
     description = "HTTP from Internet"
@@ -110,12 +110,19 @@ resource "aws_security_group" "alb_sg" {
 }
 
 # ------------------------------------------------------------------------------
+# DATA RESOURCE: This calls a public API to get your current public IP address
+# ------------------------------------------------------------------------------
+data "http" "my_ip" {
+  url = "https://checkip.amazonaws.com"
+}
+
+# ------------------------------------------------------------------------------
 # EC2 SECURITY GROUP: Only allows traffic from the ALB
 # ------------------------------------------------------------------------------
 resource "aws_security_group" "ec2_sg" {
   name        = "dev-ec2-fleet-sg"
   description = "Allow traffic from ALB only"
-  vpc_id      = var.vpc_id
+  vpc_id      = aws_vpc.main.id
 
   ingress {
     description     = "Traffic from ALB"
@@ -123,11 +130,6 @@ resource "aws_security_group" "ec2_sg" {
     to_port         = 80
     protocol        = "tcp"
     security_groups = [aws_security_group.alb_sg.id] # THIS IS THE CHAINING
-  }
-
-    # This calls a public API to get your current public IP address
-  data "http" "my_ip" {
-    url = "https://checkip.amazonaws.com"
   }
 
   # For Ansible/SSH (Temporary or via SSM)

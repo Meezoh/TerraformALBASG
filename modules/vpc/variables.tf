@@ -1,12 +1,23 @@
+variable "vpc_cidr" {
+  type        = string
+  description = "The CIDR block for the VPC"
+  # No default needed here because Terragrunt supplies it!
+}
+
+# For the ALB
 variable "public_subnet_cidrs" {
-  default = ["10.0.1.0/24", "10.0.2.0/24"] # For the ALB
+  type        = list(string)
+  description = "List of public subnet CIDRs"
 }
 
+# For the 5 EC2s
 variable "private_subnet_cidrs" {
-  default = ["10.0.11.0/24", "10.0.12.0/24"] # For the 5 EC2s
+  type        = list(string)
+  description = "List of private subnet CIDRs"
 }
 
+# Two different AZs
 variable "azs" {
-    type        = list(string)
-    default     = ["us-east-1a", "us-east-1b"] # Two different AZs
+  type        = list(string)
+  description = "Availability zones"
 }
