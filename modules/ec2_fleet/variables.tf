@@ -22,3 +22,8 @@ variable "ec2_sg_id" {
   type        = string
   description = "Security Group for the EC2 instances"
 }
+
+variable "project_root" {
+  type        = string
+  description = "The absolute path to the root of the repo"
+}

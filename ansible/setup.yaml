@@ -1,90 +1,97 @@
 ---
-# ------------------------------------------------------------------------------
-# PLAY 1: DATABASE CONFIGURATION
-# ------------------------------------------------------------------------------
-- name: "Configure Database Server"
+- name: "Master Infrastructure Configuration"
   hosts: localhost
   become: yes
-  # Only runs if this server knows it's the "database"
-  when: ansible_local.tags.Role == "database"
 
   tasks:
-    - name: "Install Postgres"
-      apt:
-        name: ["postgresql", "postgresql-contrib", "python3-psycopg2"]
-        state: present
+    # ==========================================================================
+    # BLOCK 1: DATABASE TIER (PostgreSQL)
+    # ==========================================================================
+    - name: "Database Logic"
+      when: ansible_local.tags.Role == "database"
+      block:
+        - name: "1. Install Postgres and Python Dependencies"
+          apt:
+            name: ["postgresql", "postgresql-contrib", "python3-psycopg2"]
+            state: present
+            update_cache: yes
 
-    - name: "Ensure Postgres is running"
-      service:
-        name: postgresql
-        state: started
-        enabled: yes
+        - name: "2. Ensure Postgres Service is Running"
+          service:
+            name: postgresql
+            state: started
+            enabled: yes
 
-    # --- YOUR USER & PRIVILEGE LOGIC STARTS HERE ---
-    
-    - name: "1. Create the Owner User"
-      become_user: postgres
-      community.postgresql.postgresql_user:
-        name: "devops_meezoh_user"
-        password: "AdminPassword123"
-        role_attr_flags: "CREATEDB,LOGIN"
+        - name: "3. Create the Owner User"
+          become_user: postgres
+          community.postgresql.postgresql_user:
+            name: "devops_meezoh_user"
+            password: "AdminPassword123"
+            role_attr_flags: "CREATEDB,LOGIN"
 
-    - name: "2. Create the Read-Only User"
-      become_user: postgres
-      community.postgresql.postgresql_user:
-        name: "readonly_user"
-        password: "ReadPassword123"
+        - name: "4. Create the Read-Only User"
+          become_user: postgres
+          community.postgresql.postgresql_user:
+            name: "readonly_user"
+            password: "ReadPassword123"
 
-    - name: "3. Create the Database"
-      become_user: postgres
-      community.postgresql.postgresql_db:
-        name: "devops_db"
+        - name: "5. Create the Main Application Database"
+          become_user: postgres
+          community.postgresql.postgresql_db:
+            name: "devops_db"
 
-    - name: "4. Grant ALL to Meezoh User"
-      become_user: postgres
-      community.postgresql.postgresql_privs:
-        database: devops_db
-        roles: devops_meezoh_user
-        type: database
-        privs: ALL
+        - name: "6. Grant ALL Privileges to Owner User"
+          become_user: postgres
+          community.postgresql.postgresql_privs:
+            database: devops_db
+            roles: devops_meezoh_user
+            type: database
+            privs: ALL
 
-    - name: "5. Grant SELECT to Read-Only User"
-      become_user: postgres
-      community.postgresql.postgresql_privs:
-        database: devops_db
-        schema: public
-        objs: ALL_IN_SCHEMA
-        type: table
-        roles: readonly_user
-        privs: SELECT
+        - name: "7. Grant SELECT Privileges to Read-Only User"
+          become_user: postgres
+          community.postgresql.postgresql_privs:
+            database: devops_db
+            schema: public
+            objs: ALL_IN_SCHEMA
+            type: table
+            roles: readonly_user
+            privs: SELECT
 
-# ------------------------------------------------------------------------------
-# PLAY 2: WORKER CONFIGURATION
-# ------------------------------------------------------------------------------
-- name: "Configure Web Workers"
-  hosts: localhost
-  become: yes
-  # This makes sure the Playbook only runs on the 4 workers
-  when: ansible_local.tags.Role == "web-worker"
+    # ==========================================================================
+    # BLOCK 2: WEB WORKER TIER (Nginx)
+    # ==========================================================================
+    - name: "Web Worker Logic"
+      when: ansible_local.tags.Role == "web-worker"
+      block:
+        - name: "1. Install Nginx Web Server"
+          apt:
+            name: "nginx"
+            state: present
+            update_cache: yes
 
-  tasks:
-    - name: "Install Nginx"
-      apt:
-        name: "nginx"
-        state: present
-        update_cache: yes
+        - name: "2. Generate Dynamic Landing Page"
+          copy:
+            # We use 'ansible_env' to pull the DB_HOST we injected via Terraform
+            content: |
+              <!DOCTYPE html>
+              <html>
+              <head><title>Worker Node Active</title></head>
+              <body>
+                <h1>Meezoh's Infrastructure: Node Active</h1>
+                <hr>
+                <p><b>Worker Hostname:</b> {{ ansible_hostname }}</p>
+                <p><b>Target Database:</b> {{ ansible_env.DB_HOST | default('Searching...') }}</p>
+                <p><b>Status:</b> Ansible Configuration Successful</p>
+              </body>
+              </html>
+            dest: /var/www/html/index.html
+            mode: '0644'
+          notify: "Restart Nginx"
 
-    - name: "Set up Web Page with DB Connection Info"
-      copy:
-        # Note: We use the 'ansible_env' fact here because it's more 
-        # reliable for reading system-wide environment variables
-        content: |
-          <h1>Worker Active</h1>
-          <p>Worker Hostname: {{ ansible_hostname }}</p>
-          <p>Talking to DB at: {{ ansible_env.DB_HOST | default('Not Found') }}</p>
-        dest: /var/www/html/index.html
-      notify: "Restart Nginx"
-
+  # ============================================================================
+  # HANDLERS: Only run if a task 'notifies' them
+  # ============================================================================
   handlers:
     - name: "Restart Nginx"
       service:

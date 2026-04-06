@@ -10,7 +10,7 @@ resource "aws_secretsmanager_secret" "github_key" {
 resource "aws_secretsmanager_secret_version" "key_val" {
   secret_id     = aws_secretsmanager_secret.github_key.id
   # Looks for the key file at the root of your project
-  secret_string = file("${path.module}/../../.keys/github_deploy_key") 
+  secret_string = file("${var.project_root}/.keys/github_deploy_key")
 }
 
 
@@ -172,7 +172,7 @@ resource "aws_launch_template" "web" {
   tags = {
     # This reaches "up and out" of the module to find the ansible folder
     # It will only trigger a refresh if the YAML actually changes.
-    "ConfigHash" = filebase64sha256("${path.module}/../../ansible/setup.yaml")
+    "ConfigHash" = filebase64sha256("${var.project_root}/ansible/setup.yaml")
   }
 
   vpc_security_group_ids = [var.ec2_sg_id]

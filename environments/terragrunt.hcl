@@ -8,7 +8,7 @@ remote_state {
     if_exists = "overwrite_terragrunt"
   }
   config = {
-    bucket         = "my-devops-lab-state-meezohzahri" # Unique bucket name
+    bucket         = "my-devops-lab-state-meezohzahri007" # Unique bucket name
     key            = "${path_relative_to_include()}/terraform.tfstate"
     region         = "us-east-1"
     encrypt        = true
@@ -27,4 +27,9 @@ generate "provider" {
       region = "us-east-1"
     }
   EOF
+}
+
+inputs = {
+  # This function specifically finds the folder containing the .git directory
+  project_root = get_repo_root()
 }
