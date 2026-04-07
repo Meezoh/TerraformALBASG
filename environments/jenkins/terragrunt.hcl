@@ -4,7 +4,7 @@
 
 # Include the root configuration (S3 Backend, Provider, etc.)
 include "root" {
-  path = find_in_parent_folders("root.hcl")
+  path = find_in_parent_folders()
 }
 
 # Link to the Jenkins Module we just built
