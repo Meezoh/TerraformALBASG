@@ -14,16 +14,6 @@ pipeline {
             }
         }
 
-        stage('Bootstrap Backend') {
-            steps {
-                dir('environments') {
-                    sh '''
-                        terragrunt backend bootstrap -input=false
-                    '''
-                }
-            }
-        }
-
         stage('Init Backend') {
             steps {
                 dir('environments') {
